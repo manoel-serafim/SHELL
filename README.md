@@ -1,2 +1,2 @@
 # SHELL
-Shell written in C with support for a set of commands.
+Optimized shell written in C with support for a set of commands.
