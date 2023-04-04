@@ -25,7 +25,9 @@ int parse(char * line, char ** argv, char * delimiter) {
   return argc;
 }
 
-void execute(char ** argv, int input_fd, int output_fd) {
+int execute(char ** argv, int input_fd, int output_fd, int bk) {
+
+  
   pid_t pid = fork();
   if (pid < 0) {
     perror("fork()");
@@ -45,36 +47,75 @@ void execute(char ** argv, int input_fd, int output_fd) {
     }
   } else { // parent process
     int status;
-    waitpid(pid, & status, 0);
+    
+    if(bk == 0){
+        waitpid(pid, &status, 0);
+    }
+     // status will be used for || based on status run next will change
+    
     if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
       fprintf(stderr, "Command failed with exit status %d\n", WEXITSTATUS(status));
     }
+    
+    
+    return status;
   }
-}
+}// return status of executed cmd
 
 
-void cmd_handler(int cmd_counter, char** commands){
+void cmd_handler(int pipe_counter, char** pcommands){ //commands and cmd counter are based on the number of pipes
+    
+    /*
+    //get conditional directives in pcommands
+    //AND &&
+    char* ccommands[MAX_ARG];
+    int and_counter = parse(*(pcommands), ccommands, "\"&&\"";
+    
+    int or_counter = parse(*(ccommands), ccommands, "\"||\"";
+    
+    */
+    
+    
     int input_fd = STDIN_FILENO;// used as holder of the previous fd[0]
-    for (int i = 0; i < cmd_counter; i++) {
+    int lstat = 0;
+    int bk = 0;
+    for (int i = 0; i < pipe_counter; i++) {
+        bk =0;
+        
         char * args[MAX_ARG];// arguments of each command
-        int num_args = parse(commands[i], args, " \t\n");// get cmd args
+        int num_args = parse(pcommands[i], args, " \t\n");// get cmd args
         
         if (num_args == 0) {// if no command or argument is found in args
           continue;
         }
-        int output_fd = (i == cmd_counter - 1) ? STDOUT_FILENO : -1; // output will be equal to STDOUT_FILENO if it is the last command 
         
         
+        
+        int output_fd = (i == pipe_counter - 1) ? STDOUT_FILENO : -1; // output will be equal to STDOUT_FILENO if it is the last command 
         int fd[2];// pipe def
-        if (i < cmd_counter - 1) {// in last command the pipe will not execute
+        if (i < pipe_counter - 1) {// in last command the pipe will not execute
           if (pipe(fd) < 0) {// pipe creator
             perror("pipe()");
             break;
           }
-          output_fd = fd[1]; // cmd will write into fd[1] in cases where
+          output_fd = fd[1]; // cmd will write into fd[1] when not in last command
         }
-        execute(args, input_fd, output_fd); // cmd write based on each
-        if (i < cmd_counter - 1) {//in the last command this step will not be necessary
+        
+        
+        if( **(args+num_args-1) == '&'){
+        
+            bk = 1;
+            output_fd = STDOUT_FILENO;//1
+            *(args+num_args-1) = NULL;
+        }
+        
+        lstat = execute(args, input_fd, output_fd,bk); // cmd write based on each
+        // lstat = status of last cmd
+        
+        
+        
+        
+        if (i < pipe_counter - 1) {//in the last command this step will not be necessary
           close(fd[1]);
           input_fd = fd[0]; //next command will get input from the last
         }
@@ -98,14 +139,17 @@ int main(int argc, char ** argv) {
       }
       
       printf(RED "["RESET "~%s"RED "]$>", cwd);//print indicator
+      fflush(stdout);// erase any buffered output
+      
       
       if ((int) getline( &line, &bufsize, stdin) < 0) {//get user input:
         perror("getline()");
         continue;
       }
       
+      
       char * commands[MAX_CMD]; // holder of each cmd block
-      int num_commands = parse(line, commands, "\"|\"");
+      int num_commands = parse(line, commands, "|");//first separation will happen with pipes
       
       if (num_commands == 0) {//if no command was received continue
         continue;
@@ -122,6 +166,7 @@ int main(int argc, char ** argv) {
     free(line);
   } //if(argc==1)
   else {
+  
     char * commands[MAX_CMD];
     int num_commands = parse(*(argv+1), commands, "\"|\"");
     if (num_commands == 0) {
