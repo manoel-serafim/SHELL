@@ -27,7 +27,8 @@ Optimized shell written in C with support for a set of commands.
 
 
 -Supported features:
+
 $>Command piping        ("|")✓
->Conditional execution  ("||","&&")
->Background execution   ("*&")
->stdout redirect        ("<<",">>","<",">")
+$>Conditional execution  ("||","&&")
+$>Background execution   ("*&")
+$>stdout redirect        ("<<",">>","<",">")
